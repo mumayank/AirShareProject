@@ -6,17 +6,17 @@ import android.net.Uri
 
 private const val SELECT_FILES = 1243
 
-class AirShareAddFile {
+class AirShareAddFile(activity: Activity, callbacks: Callbacks, addFileUris: ArrayList<Uri> = ArrayList()) {
 
     interface Callbacks {
-        fun onSuccess(addFileUris: ArrayList<Uri>)
+        fun onSuccess(uri: Uri)
         fun onFileAlreadyAdded()
     }
 
     private var addFileUris = ArrayList<Uri>()
     private var callbacks: Callbacks? = null
 
-    fun addFile(activity: Activity, callbacks: Callbacks, addFileUris: ArrayList<Uri> = ArrayList()) {
+    init {
         this.addFileUris = addFileUris
         this.callbacks = callbacks
 
@@ -33,8 +33,7 @@ class AirShareAddFile {
                 if (addFileUris.contains(uri)) {
                     callbacks?.onFileAlreadyAdded()
                 } else {
-                    addFileUris.add(uri)
-                    callbacks?.onSuccess(addFileUris)
+                    callbacks?.onSuccess(uri)
                 }
             }
         }

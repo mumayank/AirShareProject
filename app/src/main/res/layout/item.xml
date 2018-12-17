@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:background="@android:color/white"
+        android:orientation="vertical"
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools">
+
+    <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+        <TextView
+                android:id="@+id/fileNameTextView"
+                tools:text="Filename.txt this coudl also be something great but you don't have to be this long in the first place you know"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="@android:color/black"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_marginLeft="16dp"
+                android:gravity="center_vertical"
+                android:layout_height="match_parent"/>
+
+        <TextView
+                android:id="@+id/fileSizeTextView"
+                tools:text="3434 KB"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="@color/greyDark"
+                android:layout_width="wrap_content"
+                android:layout_marginLeft="16dp"
+                android:gravity="center_vertical"
+                android:layout_height="match_parent"/>
+
+        <ImageView
+                android:background="?android:attr/selectableItemBackground"
+                android:id="@+id/deleteImageView"
+                android:tint="@color/grey"
+                android:padding="16dp"
+                app:srcCompat="@drawable/ic_close_black_24dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+    </LinearLayout>
+
+    <View
+            android:visibility="gone"
+            android:background="@color/greyLight"
+            android:layout_width="match_parent"
+            android:layout_height="1dp" />
+
+</LinearLayout>

@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#008577</color>
-    <color name="colorPrimaryDark">#00574B</color>
-    <color name="colorAccent">#D81B60</color>
+    <color name="colorPrimary">@color/skypeBlue</color>
+    <color name="colorPrimaryDark">@color/skypeBlue</color>
+    <color name="colorAccent">@color/skypeBlue</color>
+
+    <color name="skypeBlue">#12A5F4</color>
+    <color name="skypeBlueTrans">#1912a5f4</color>
+    <color name="tomato">#FF6347</color>
+    <color name="grey">#dedede</color>
+    <color name="greyDark">#afafaf</color>
+    <color name="greyLight">#f9f9f9</color>
+    <color name="whatsappGreen">#25D366</color>
+    <color name="whatsappGreenTrans">#0a25d366</color>
 </resources>

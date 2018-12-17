@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:orientation="vertical"
+        android:background="@android:color/white"
+        xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <LinearLayout
+            android:background="@color/grey"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+        <TextView
+                android:id="@+id/totalTextView"
+                android:padding="16dp"
+                android:textColor="@android:color/black"
+                android:text="TOTAL 0 MB"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"/>
+
+        <TextView
+                android:id="@+id/clearAll"
+                android:padding="16dp"
+                android:text="CLEAR"
+                android:background="?android:attr/selectableItemBackground"
+                android:textColor="@android:color/black"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+    </LinearLayout>
+
+    <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+        <TextView
+                android:padding="16dp"
+                android:gravity="center"
+                android:textColor="@color/greyDark"
+                android:text="Added files will be shown here"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+
+        <android.support.v7.widget.RecyclerView
+                android:id="@+id/rv"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+        <android.support.design.widget.FloatingActionButton
+                android:id="@+id/addFile"
+                android:tint="@android:color/white"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|bottom"
+                app:srcCompat="@drawable/ic_add_black_24dp"
+                android:layout_margin="40dp" />
+
+    </FrameLayout>
+
+    <LinearLayout
+            android:background="@color/greyLight"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+        <LinearLayout
+                android:padding="8dp"
+                android:gravity="center"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+            <Button
+                    android:id="@+id/send"
+                    android:text="SEND"
+                    android:textStyle="bold"
+                    android:paddingLeft="64dp"
+                    android:paddingRight="64dp"
+                    android:theme="@style/SkypeButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="60dp"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

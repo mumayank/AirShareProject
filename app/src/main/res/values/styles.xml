@@ -8,4 +8,19 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <style name="SkypeButton" parent="Widget.AppCompat.Button.Colored">
+        <item name="colorButtonNormal">@color/skypeBlue</item>
+        <item name="android:textColor">@android:color/white</item>
+    </style>
+
+    <style name="TomatoButton" parent="Widget.AppCompat.Button.Colored">
+        <item name="colorButtonNormal">@color/tomato</item>
+        <item name="android:textColor">@android:color/white</item>
+    </style>
+
+    <style name="WhatsappGreenButton" parent="Widget.AppCompat.Button.Colored">
+        <item name="colorButtonNormal">@color/whatsappGreen</item>
+        <item name="android:textColor">@android:color/white</item>
+    </style>
+
 </resources>

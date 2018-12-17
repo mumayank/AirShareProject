@@ -12,7 +12,7 @@ class AirShareFileProperties {
     }
 
     companion object {
-        fun getFileProperties(activity: Activity, fileUri: Uri, callbacks: Callbacks) {
+        fun extractFileProperties(activity: Activity, fileUri: Uri, callbacks: Callbacks) {
             val cursor: Cursor? = activity.contentResolver.query(fileUri, null, null, null, null, null)
             if (cursor == null) {
                 callbacks.onOperationFailed()

@@ -5,14 +5,14 @@ import android.app.Activity
 import android.content.Context
 import android.net.Uri
 import android.net.wifi.WifiManager
+import android.os.Environment
 import android.os.PowerManager
 import android.view.WindowManager
 import com.gun0912.tedpermission.PermissionListener
 import com.gun0912.tedpermission.TedPermission
 import org.jetbrains.anko.doAsync
 import org.jetbrains.anko.uiThread
-import java.io.DataInputStream
-import java.io.DataOutputStream
+import java.io.*
 import java.lang.Exception
 import java.net.ServerSocket
 import java.net.Socket
@@ -20,7 +20,9 @@ import kotlin.random.Random
 
 private const val ANDROID_CONSTANT_IP_WHEN_STARTING_HOTSPOT = "192.168.43.1"
 private const val ANDROID_CONSTANT_SERVER_IP_STARTS_WITH = "192.168.43."
+private const val APP_FOLDER = "/AirShare"
 private const val TIMEOUT = 1000 * 60 * 60 * 6 // 6 hours
+private const val BUFFER = 1024 * 16
 
 class AirShare private constructor(
     val activity: Activity,
@@ -45,25 +47,31 @@ class AirShare private constructor(
     private var serverSocket: ServerSocket? = null
     private var dataInputStream: DataInputStream? = null
     private var dataOutputStream: DataOutputStream? = null
-
-    interface NetworkStarterCallbacks {
-        fun onWriteExternalStoragePermissionDenied()
-        fun onNoFilesToSend()
-        fun onServerStarted(codeForClient: String)
-        fun onClientConnected()
-    }
-
-    interface NetworkJoinerCallbacks {
-        fun onWriteExternalStoragePermissionDenied()
-        fun getCodeForClient(): String
-        fun onConnectedToServer()
-    }
+    private var counter = -1
+    private var clientTotalNumber = 0
+    private var clientTotalSize = 0
 
     init {
         if ( (clientSocket != null) || (serverSocket != null) ) {
             terminateConnection()
         }
         checkPermission()
+    }
+
+    interface NetworkStarterCallbacks {
+        fun onWriteExternalStoragePermissionDenied()
+        fun onNoFilesToSend()
+        fun onServerStarted(codeForClient: String)
+        fun onClientConnected()
+        fun getFileUris(): ArrayList<Uri>
+        fun onAllFilesSentSuccessfully()
+    }
+
+    interface NetworkJoinerCallbacks {
+        fun onWriteExternalStoragePermissionDenied()
+        fun getCodeForClient(): String
+        fun onConnectedToServer()
+        fun onAllFilesReceivedSuccessfully()
     }
 
     private fun checkPermission() {
@@ -160,7 +168,9 @@ class AirShare private constructor(
                                 terminateConnection()
                                 return@doAsync
                             } else {
-                                // todo start sending on background
+                                uiThread {
+                                    serverStarted()
+                                }
                             }
                         }
                     }
@@ -204,8 +214,7 @@ class AirShare private constructor(
 
             uiThread {
                 networkJoinerCallbacks.onConnectedToServer()
-
-                // todo start receiving on background
+                clientStarted()
             }
         }
     }
@@ -222,12 +231,140 @@ class AirShare private constructor(
 
     }
 
+    fun onDestroy() {
+        terminateConnection()
+    }
+
     fun terminateConnection() {
         wakeLock?.release()
         clientSocket?.close()
         serverSocket?.close()
         dataInputStream?.close()
         dataOutputStream?.close()
+    }
+
+    private fun serverStarted() {
+
+        // send total no. of files
+        if (dataOutputStream == null) {
+            terminateConnection()
+            return
+        }
+        if (networkStarterCallbacks == null) {
+            terminateConnection()
+            return
+        }
+        (dataOutputStream as DataOutputStream).writeUTF(networkStarterCallbacks.getFileUris().size.toString())
+
+        // send total size
+        var totalSize = 0L
+        for (uri in networkStarterCallbacks.getFileUris()) {
+            AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
+                override fun onSuccess(fileDisplayName: String, fileSizeInMB: Long) {
+                    totalSize += fileSizeInMB
+                }
+
+                override fun onOperationFailed() {
+                    terminateConnection()
+                }
+            })
+        }
+        (dataOutputStream as DataOutputStream).writeUTF(totalSize.toString())
+
+        // send file one by one, also send its size (we are assuming buffer size will be available)
+        sendNextFile()
+    }
+
+    private fun clientStarted() {
+
+        // receive total no. of files
+        if (dataInputStream == null) {
+            terminateConnection()
+            return
+        }
+        if (networkJoinerCallbacks == null) {
+            terminateConnection()
+            return
+        }
+        clientTotalNumber = (dataInputStream as DataInputStream).readUTF().toInt()
+        clientTotalSize = (dataInputStream as DataInputStream).readUTF().toInt()
+
+        receiveNextFile()
+    }
+
+    private fun sendNextFile() {
+        counter++
+
+        if (networkStarterCallbacks == null) {
+            terminateConnection()
+            return
+        }
+        if (counter == networkStarterCallbacks.getFileUris().size) {
+            networkStarterCallbacks.onAllFilesSentSuccessfully()
+            return
+        }
+
+        // get uri
+        val uri = networkStarterCallbacks.getFileUris().get(counter)
+
+        // send file
+        AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
+            override fun onSuccess(fileDisplayName: String, fileSizeInMB: Long) {
+
+                // send file name
+                if (dataOutputStream == null) {
+                    terminateConnection()
+                    return
+                }
+                (dataOutputStream as DataOutputStream).writeUTF(fileDisplayName)
+                //(dataOutputStream as DataOutputStream).writeUTF(fileSizeInMB.toString())
+
+
+                // create input stream
+                val file = File(uri.path)
+                val fileInputStream = FileInputStream(file)
+
+                // send file
+                (dataOutputStream as DataOutputStream).write(fileInputStream.read())
+
+                // send next
+                sendNextFile()
+            }
+
+            override fun onOperationFailed() {
+                terminateConnection()
+            }
+        })
+    }
+
+    private fun receiveNextFile() {
+        counter++
+
+        if (networkJoinerCallbacks == null) {
+            terminateConnection()
+            return
+        }
+        if (counter == clientTotalNumber) {
+            networkJoinerCallbacks.onAllFilesReceivedSuccessfully()
+            return
+        }
+
+        // read file name
+        if (dataInputStream == null) {
+            terminateConnection()
+            return
+        }
+        val fileName = (dataInputStream as DataInputStream).readUTF()
+
+        // create output stream
+        val path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS + APP_FOLDER)
+        path.mkdirs()
+        val file = File(path, fileName)
+        val fileOutputStream = FileOutputStream(file)
+
+        // receive file
+        fileOutputStream.write((dataInputStream as DataInputStream).read())
+
     }
 
 }
