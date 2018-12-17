@@ -1,12 +1,17 @@
 package mumayank.com.airshareproject
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.support.v7.app.AlertDialog
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.RecyclerView
+import android.text.InputType
 import android.view.MenuItem
 import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -77,26 +82,47 @@ class SendActivity : AppCompatActivity() {
                 "This app uses wifi to transfer files. You and your friend can get connected to a same wifi. Or you can start a wifi hotspot and the friend can connect to it, Or vice-versa.",
                 isCancelable = false,
                 airButton1 = AirDialog.Button("WE ARE CONNECTED VIA WIFI") {
+                    airShare = AirShare(this, object: AirShare.CommonCallbacks {
+                        override fun onWriteExternalStoragePermissionDenied() {
+                            Toast.makeText(this@SendActivity, "Cannot continue without file writing permission access", Toast.LENGTH_SHORT).show()
+                        }
 
-                    AirDialog.show(
-                        this,
-                        "Make a choice",
-                        "Among you two, one person needs to start the connection while the other needs to join that connection",
-                        isCancelable = false,
-                        airButton1 = AirDialog.Button("I WILL START") {
+                        override fun onConnected() {
+                            Toast.makeText(this@SendActivity, "Friend has joined this connection", Toast.LENGTH_SHORT).show()
+                        }
 
-
-
-                        },
-                        airButton2 = AirDialog.Button("I WILL JOIN") {
-
-
-
-                        },
-                        airButton3 = AirDialog.Button("CANCEL") {
+                        override fun onAllFilesSentAndReceivedSuccessfully() {
+                            Toast.makeText(this@SendActivity, "All files sent successfully!", Toast.LENGTH_SHORT).show()
                             finish()
                         }
-                    )
+
+                    }, object: AirShare.NetworkStarterCallbacks {
+                        override fun onServerStarted(codeForClient: String) {
+                            AirDialog.show(
+                                this@SendActivity,
+                                "$codeForClient is the OTP for joining this connection",
+                                "Your friend will need this to join your connection",
+                                isCancelable = false,
+                                airButton1 = AirDialog.Button("NOTED, PROCEED") {
+
+                                },
+                                airButton3 = AirDialog.Button("CANCEL") {
+                                    finish()
+                                }
+                            )
+                            Toast.makeText(this@SendActivity, "Connection started", Toast.LENGTH_SHORT).show()
+                        }
+
+                    }, object: AirShare.SenderCallbacks {
+                        override fun getFilesUris(): ArrayList<Uri> {
+                            return uris
+                        }
+
+                        override fun onNoFilesToSend() {
+                            Toast.makeText(this@SendActivity, "No files to send!", Toast.LENGTH_SHORT).show()
+                        }
+
+                    })
 
                 },
                 airButton3 = AirDialog.Button("CANCEL") {
@@ -104,45 +130,6 @@ class SendActivity : AppCompatActivity() {
                 }
             )
 
-
-            airShare = AirShare(this, uris, object: AirShare.NetworkStarterCallbacks {
-                override fun onWriteExternalStoragePermissionDenied() {
-                    Toast.makeText(this@SendActivity, "Please grant permission to continue", Toast.LENGTH_SHORT).show()
-                }
-
-                override fun onNoFilesToSend() {
-                    Toast.makeText(this@SendActivity, "No files to send", Toast.LENGTH_SHORT).show()
-                }
-
-                override fun onServerStarted(codeForClient: String) {
-                    AirDialog.show(
-                        this@SendActivity,
-                        "$codeForClient is the OTP for receiver",
-                        "Receiver must enter this OTP in their app to continue",
-                        isCancelable = false,
-                        airButton1 = AirDialog.Button("DONE") {
-
-                        },
-                        airButton3 = AirDialog.Button("CANCEL") {
-                            finish()
-                        }
-                    )
-                    Toast.makeText(this@SendActivity, "Server started", Toast.LENGTH_SHORT).show()
-                }
-
-                override fun onClientConnected() {
-                    TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-                }
-
-                override fun getFileUris(): ArrayList<Uri> {
-                    TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-                }
-
-                override fun onAllFilesSentSuccessfully() {
-                    TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-                }
-
-            })
         }
     }
 

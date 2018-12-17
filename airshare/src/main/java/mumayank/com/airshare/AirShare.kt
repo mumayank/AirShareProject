@@ -26,21 +26,37 @@ private const val BUFFER = 1024 * 16
 
 class AirShare private constructor(
     val activity: Activity,
-    val uris: ArrayList<Uri>? = null,
+    val commonCallbacks: CommonCallbacks,
     val networkStarterCallbacks: NetworkStarterCallbacks? = null,
-    val networkJoinerCallbacks: NetworkJoinerCallbacks? = null
+    val networkJoinerCallbacks: NetworkJoinerCallbacks? = null,
+    val senderCallbacks: SenderCallbacks? = null
 ) {
 
     constructor(
         activity: Activity,
-        uris: ArrayList<Uri>,
-        networkStarterCallbacks: NetworkStarterCallbacks
-    ) : this(activity, uris, networkStarterCallbacks, null)
+        commonCallbacks: CommonCallbacks,
+        networkStarterCallbacks: NetworkStarterCallbacks,
+        senderCallbacks: SenderCallbacks
+    ) : this(activity, commonCallbacks, networkStarterCallbacks, null, senderCallbacks)
 
     constructor(
         activity: Activity,
+        commonCallbacks: CommonCallbacks,
+        networkJoinerCallbacks: NetworkJoinerCallbacks,
+        senderCallbacks: SenderCallbacks
+    ) : this(activity, commonCallbacks, null, networkJoinerCallbacks, senderCallbacks)
+
+    constructor(
+        activity: Activity,
+        commonCallbacks: CommonCallbacks,
+        networkStarterCallbacks: NetworkStarterCallbacks
+    ) : this(activity, commonCallbacks, networkStarterCallbacks, null, null)
+
+    constructor(
+        activity: Activity,
+        commonCallbacks: CommonCallbacks,
         networkJoinerCallbacks: NetworkJoinerCallbacks
-    ) : this(activity, null, null, networkJoinerCallbacks)
+    ) : this(activity, commonCallbacks, null, networkJoinerCallbacks, null)
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var clientSocket: Socket? = null
@@ -55,23 +71,35 @@ class AirShare private constructor(
         if ( (clientSocket != null) || (serverSocket != null) ) {
             terminateConnection()
         }
-        checkPermission()
+        if (senderCallbacks != null) {
+            if (senderCallbacks.getFilesUris().size == 0) {
+                senderCallbacks.onNoFilesToSend()
+                terminateConnection()
+            } else {
+                checkPermission()
+            }
+        } else {
+            checkPermission()
+        }
+    }
+
+    interface CommonCallbacks {
+        fun onWriteExternalStoragePermissionDenied()
+        fun onConnected()
+        fun onAllFilesSentAndReceivedSuccessfully()
     }
 
     interface NetworkStarterCallbacks {
-        fun onWriteExternalStoragePermissionDenied()
-        fun onNoFilesToSend()
         fun onServerStarted(codeForClient: String)
-        fun onClientConnected()
-        fun getFileUris(): ArrayList<Uri>
-        fun onAllFilesSentSuccessfully()
     }
 
     interface NetworkJoinerCallbacks {
-        fun onWriteExternalStoragePermissionDenied()
         fun getCodeForClient(): String
-        fun onConnectedToServer()
-        fun onAllFilesReceivedSuccessfully()
+    }
+
+    interface SenderCallbacks {
+        fun getFilesUris(): ArrayList<Uri>
+        fun onNoFilesToSend()
     }
 
     private fun checkPermission() {
@@ -82,11 +110,7 @@ class AirShare private constructor(
                 }
 
                 override fun onPermissionDenied(deniedPermissions: MutableList<String>?) {
-                    if (networkStarterCallbacks != null) {
-                        networkStarterCallbacks.onWriteExternalStoragePermissionDenied()
-                    } else if (networkJoinerCallbacks != null) {
-                        networkJoinerCallbacks.onWriteExternalStoragePermissionDenied()
-                    }
+                    commonCallbacks.onWriteExternalStoragePermissionDenied()
                     terminateConnection()
                 }
             })
@@ -97,12 +121,7 @@ class AirShare private constructor(
     private fun permissionGrantedProceed() {
         addWakeLock()
         if (networkStarterCallbacks != null) {
-            if ( (uris == null) || (uris.size == 0) ) {
-                networkStarterCallbacks.onNoFilesToSend()
-                terminateConnection()
-            } else {
-                startNetwork()
-            }
+            startNetwork()
         } else if (networkJoinerCallbacks != null) {
             joinNetwork()
         } else {
@@ -159,7 +178,7 @@ class AirShare private constructor(
                     }
 
                     uiThread {
-                        networkStarterCallbacks.onClientConnected()
+                        commonCallbacks.onConnected()
 
                         doAsync {
                             dataInputStream = DataInputStream(clientSocket?.getInputStream())
@@ -169,7 +188,7 @@ class AirShare private constructor(
                                 return@doAsync
                             } else {
                                 uiThread {
-                                    serverStarted()
+                                    startTransfer()
                                 }
                             }
                         }
@@ -213,8 +232,20 @@ class AirShare private constructor(
             }
 
             uiThread {
-                networkJoinerCallbacks.onConnectedToServer()
-                clientStarted()
+                commonCallbacks.onConnected()
+
+                doAsync {
+                    dataInputStream = DataInputStream(clientSocket?.getInputStream())
+                    dataOutputStream = DataOutputStream(clientSocket?.getOutputStream())
+                    if ( (dataInputStream == null) || (dataOutputStream == null) ) {
+                        terminateConnection()
+                        return@doAsync
+                    } else {
+                        uiThread {
+                            startTransfer()
+                        }
+                    }
+                }
             }
         }
     }
@@ -236,76 +267,88 @@ class AirShare private constructor(
     }
 
     fun terminateConnection() {
-        wakeLock?.release()
-        clientSocket?.close()
-        serverSocket?.close()
-        dataInputStream?.close()
-        dataOutputStream?.close()
+        try {
+            wakeLock?.release()
+            clientSocket?.close()
+            serverSocket?.close()
+            dataInputStream?.close()
+            dataOutputStream?.close()
+        } catch (e: Exception) {}
     }
 
-    private fun serverStarted() {
+    private fun startTransfer() {
 
-        // send total no. of files
-        if (dataOutputStream == null) {
-            terminateConnection()
-            return
-        }
-        if (networkStarterCallbacks == null) {
-            terminateConnection()
-            return
-        }
-        (dataOutputStream as DataOutputStream).writeUTF(networkStarterCallbacks.getFileUris().size.toString())
+        // detect if sender or receiver
+        if (senderCallbacks != null) {
 
-        // send total size
-        var totalSize = 0L
-        for (uri in networkStarterCallbacks.getFileUris()) {
-            AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
-                override fun onSuccess(fileDisplayName: String, fileSizeInMB: Long) {
-                    totalSize += fileSizeInMB
+            // send total no. of files
+            if (dataOutputStream == null) {
+                terminateConnection()
+                return
+            }
+
+            doAsync {
+                (dataOutputStream as DataOutputStream).writeUTF(senderCallbacks.getFilesUris().size.toString())
+                (dataOutputStream as DataOutputStream).flush()
+
+                // send total size
+                var totalSize = 0L
+                for (uri in senderCallbacks.getFilesUris()) {
+                    AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
+                        override fun onSuccess(fileDisplayName: String, fileSizeInMB: Long) {
+                            totalSize += fileSizeInMB
+                        }
+
+                        override fun onOperationFailed() {
+                            terminateConnection()
+                        }
+                    })
                 }
+                (dataOutputStream as DataOutputStream).writeUTF(totalSize.toString())
+                (dataOutputStream as DataOutputStream).flush()
 
-                override fun onOperationFailed() {
-                    terminateConnection()
+                uiThread {
+                    // send file one by one, also send its size (we are assuming buffer size will be available)
+                    sendNextFile()
                 }
-            })
+            }
+
+        } else {
+
+            // receive total no. of files
+            if (dataInputStream == null) {
+                terminateConnection()
+                return
+            }
+
+            doAsync {
+                clientTotalNumber = (dataInputStream as DataInputStream).readUTF().toInt()
+                clientTotalSize = (dataInputStream as DataInputStream).readUTF().toInt()
+
+                uiThread {
+                    receiveNextFile()
+                }
+            }
+
         }
-        (dataOutputStream as DataOutputStream).writeUTF(totalSize.toString())
 
-        // send file one by one, also send its size (we are assuming buffer size will be available)
-        sendNextFile()
-    }
-
-    private fun clientStarted() {
-
-        // receive total no. of files
-        if (dataInputStream == null) {
-            terminateConnection()
-            return
-        }
-        if (networkJoinerCallbacks == null) {
-            terminateConnection()
-            return
-        }
-        clientTotalNumber = (dataInputStream as DataInputStream).readUTF().toInt()
-        clientTotalSize = (dataInputStream as DataInputStream).readUTF().toInt()
-
-        receiveNextFile()
     }
 
     private fun sendNextFile() {
         counter++
 
-        if (networkStarterCallbacks == null) {
+        if (senderCallbacks == null) {
             terminateConnection()
             return
         }
-        if (counter == networkStarterCallbacks.getFileUris().size) {
-            networkStarterCallbacks.onAllFilesSentSuccessfully()
+        if (counter == senderCallbacks.getFilesUris().size) {
+            commonCallbacks.onAllFilesSentAndReceivedSuccessfully()
+            terminateConnection()
             return
         }
 
         // get uri
-        val uri = networkStarterCallbacks.getFileUris().get(counter)
+        val uri = senderCallbacks.getFilesUris().get(counter)
 
         // send file
         AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
@@ -316,19 +359,37 @@ class AirShare private constructor(
                     terminateConnection()
                     return
                 }
-                (dataOutputStream as DataOutputStream).writeUTF(fileDisplayName)
-                //(dataOutputStream as DataOutputStream).writeUTF(fileSizeInMB.toString())
 
+                doAsync {
+                    (dataOutputStream as DataOutputStream).writeUTF(fileDisplayName)
+                    (dataOutputStream as DataOutputStream).flush()
+                    //(dataOutputStream as DataOutputStream).writeUTF(fileSizeInMB.toString())
 
-                // create input stream
-                val file = File(uri.path)
-                val fileInputStream = FileInputStream(file)
+                    // create input stream
+                    val inputStream = activity.contentResolver.openInputStream(uri)
+                    if (inputStream == null) {
+                        terminateConnection()
+                        return@doAsync
+                    }
 
-                // send file
-                (dataOutputStream as DataOutputStream).write(fileInputStream.read())
+                    // send file
+                    val byteArray = ByteArray(BUFFER)
+                    var count = inputStream.read(byteArray) ?: 0
+                    while (count > 0) {
+                        (dataOutputStream as DataOutputStream).write(byteArray, 0, count)
+                        count = inputStream.read(byteArray) ?: 0
+                    }
 
-                // send next
-                sendNextFile()
+                    (dataOutputStream as DataOutputStream).flush()
+                    inputStream.close()
+
+                    uiThread {
+                        // send next
+                        sendNextFile()
+                    }
+
+                }
+
             }
 
             override fun onOperationFailed() {
@@ -340,12 +401,9 @@ class AirShare private constructor(
     private fun receiveNextFile() {
         counter++
 
-        if (networkJoinerCallbacks == null) {
-            terminateConnection()
-            return
-        }
         if (counter == clientTotalNumber) {
-            networkJoinerCallbacks.onAllFilesReceivedSuccessfully()
+            commonCallbacks.onAllFilesSentAndReceivedSuccessfully()
+            terminateConnection()
             return
         }
 
@@ -354,17 +412,36 @@ class AirShare private constructor(
             terminateConnection()
             return
         }
-        val fileName = (dataInputStream as DataInputStream).readUTF()
 
-        // create output stream
-        val path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS + APP_FOLDER)
-        path.mkdirs()
-        val file = File(path, fileName)
-        val fileOutputStream = FileOutputStream(file)
+        doAsync {
 
-        // receive file
-        fileOutputStream.write((dataInputStream as DataInputStream).read())
+            val fileName = (dataInputStream as DataInputStream).readUTF()
 
+            // create output stream
+            val path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS + APP_FOLDER)
+            path.mkdirs()
+            val file = File(path, fileName)
+            val fileOutputStream = FileOutputStream(file)
+
+            // receive file
+            if (dataInputStream == null) {
+                terminateConnection()
+                return@doAsync
+            }
+            val byteArray = ByteArray(BUFFER)
+            var count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
+            while (count > 0) {
+                fileOutputStream.write(byteArray, 0, count)
+                count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
+            }
+
+            fileOutputStream.flush()
+            fileOutputStream.close()
+
+            uiThread {
+                receiveNextFile()
+            }
+        }
     }
 
 }
