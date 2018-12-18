@@ -83,7 +83,6 @@ class MainActivity : AppCompatActivity() {
 
                             override fun onAllFilesSentAndReceivedSuccessfully() {
                                 Toast.makeText(this@MainActivity, "All files received successfully in 'Download' folder!", Toast.LENGTH_SHORT).show()
-                                finish()
                             }
 
                         })
