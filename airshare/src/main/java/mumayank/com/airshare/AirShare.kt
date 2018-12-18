@@ -26,37 +26,19 @@ private const val BUFFER = 1024
 
 class AirShare private constructor(
     val activity: Activity,
-    val commonCallbacks: CommonCallbacks,
-    val networkStarterCallbacks: NetworkStarterCallbacks? = null,
-    val networkJoinerCallbacks: NetworkJoinerCallbacks? = null,
-    val senderCallbacks: SenderCallbacks? = null
+    val starterOfNetworkCallbacks: StarterOfNetworkCallbacks? = null,
+    val joinerOfNetworkCallbacks: JoinerOfNetworkCallbacks? = null
 ) {
 
     constructor(
         activity: Activity,
-        commonCallbacks: CommonCallbacks,
-        networkStarterCallbacks: NetworkStarterCallbacks,
-        senderCallbacks: SenderCallbacks
-    ) : this(activity, commonCallbacks, networkStarterCallbacks, null, senderCallbacks)
+        starterOfNetworkCallbacks: StarterOfNetworkCallbacks
+    ) : this(activity, starterOfNetworkCallbacks, null)
 
     constructor(
         activity: Activity,
-        commonCallbacks: CommonCallbacks,
-        networkJoinerCallbacks: NetworkJoinerCallbacks,
-        senderCallbacks: SenderCallbacks
-    ) : this(activity, commonCallbacks, null, networkJoinerCallbacks, senderCallbacks)
-
-    constructor(
-        activity: Activity,
-        commonCallbacks: CommonCallbacks,
-        networkStarterCallbacks: NetworkStarterCallbacks
-    ) : this(activity, commonCallbacks, networkStarterCallbacks, null, null)
-
-    constructor(
-        activity: Activity,
-        commonCallbacks: CommonCallbacks,
-        networkJoinerCallbacks: NetworkJoinerCallbacks
-    ) : this(activity, commonCallbacks, null, networkJoinerCallbacks, null)
+        joinerOfNetworkCallbacks: JoinerOfNetworkCallbacks
+    ) : this(activity, null, joinerOfNetworkCallbacks)
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var clientSocket: Socket? = null
@@ -72,9 +54,9 @@ class AirShare private constructor(
         if ( (clientSocket != null) || (serverSocket != null) ) {
             terminateConnection()
         }
-        if (senderCallbacks != null) {
-            if (senderCallbacks.getFilesUris().size == 0) {
-                senderCallbacks.onNoFilesToSend()
+        if (starterOfNetworkCallbacks != null) {
+            if (starterOfNetworkCallbacks.getFilesUris().size == 0) {
+                starterOfNetworkCallbacks.onNoFilesToSend()
                 terminateConnection()
             } else {
                 checkPermission()
@@ -84,24 +66,25 @@ class AirShare private constructor(
         }
     }
 
-    interface CommonCallbacks {
+    interface StarterOfNetworkCallbacks {
         fun onWriteExternalStoragePermissionDenied()
         fun onConnected()
         fun onProgress(progressPercentage: Int)
         fun onAllFilesSentAndReceivedSuccessfully()
-    }
-
-    interface NetworkStarterCallbacks {
         fun onServerStarted(codeForClient: String)
+        fun getFilesUris(): ArrayList<Uri>
+        fun onNoFilesToSend()
     }
 
-    interface NetworkJoinerCallbacks {
+    interface JoinerOfNetworkCallbacks {
+        fun onWriteExternalStoragePermissionDenied()
+        fun onConnected()
+        fun onProgress(progressPercentage: Int)
         fun getCodeForClient(): String
+        fun onAllFilesSentAndReceivedSuccessfully()
     }
 
     interface SenderCallbacks {
-        fun getFilesUris(): ArrayList<Uri>
-        fun onNoFilesToSend()
     }
 
     private fun checkPermission() {
@@ -112,7 +95,8 @@ class AirShare private constructor(
                 }
 
                 override fun onPermissionDenied(deniedPermissions: MutableList<String>?) {
-                    commonCallbacks.onWriteExternalStoragePermissionDenied()
+                    starterOfNetworkCallbacks?.onWriteExternalStoragePermissionDenied()
+                    joinerOfNetworkCallbacks?.onWriteExternalStoragePermissionDenied()
                     terminateConnection()
                 }
             })
@@ -122,9 +106,9 @@ class AirShare private constructor(
 
     private fun permissionGrantedProceed() {
         addWakeLock()
-        if (networkStarterCallbacks != null) {
+        if (starterOfNetworkCallbacks != null) {
             startNetwork()
-        } else if (networkJoinerCallbacks != null) {
+        } else if (joinerOfNetworkCallbacks != null) {
             joinNetwork()
         } else {
             terminateConnection()
@@ -164,12 +148,12 @@ class AirShare private constructor(
                     code = ""
                 }
 
-                if (networkStarterCallbacks == null) {
+                if (starterOfNetworkCallbacks == null) {
                     terminateConnection()
                     return@uiThread
                 }
 
-                networkStarterCallbacks.onServerStarted("$code$port")
+                starterOfNetworkCallbacks.onServerStarted("$code$port")
 
                 doAsync {
                     clientSocket = serverSocket?.accept()
@@ -180,7 +164,7 @@ class AirShare private constructor(
                     }
 
                     uiThread {
-                        commonCallbacks.onConnected()
+                        starterOfNetworkCallbacks.onConnected()
                         startTransfer()
                     }
                 }
@@ -190,12 +174,12 @@ class AirShare private constructor(
 
     private fun joinNetwork() {
 
-        if (networkJoinerCallbacks == null) {
+        if (joinerOfNetworkCallbacks == null) {
             terminateConnection()
             return
         }
 
-        val code = networkJoinerCallbacks.getCodeForClient()
+        val code = joinerOfNetworkCallbacks.getCodeForClient()
 
         val port = code.substring(code.length - 4, code.length)
         val endIp = code.substring(0, code.length - 4)
@@ -222,7 +206,7 @@ class AirShare private constructor(
             }
 
             uiThread {
-                commonCallbacks.onConnected()
+                joinerOfNetworkCallbacks.onConnected()
                 startTransfer()
             }
         }
@@ -264,7 +248,7 @@ class AirShare private constructor(
             uiThread {
 
                 // detect if sender or receiver
-                if (senderCallbacks != null) {
+                if (starterOfNetworkCallbacks != null) {
 
                     // send total no. of files
                     if (dataOutputStream == null) {
@@ -272,11 +256,11 @@ class AirShare private constructor(
                         return@uiThread
                     }
                     doAsync {
-                        (dataOutputStream as DataOutputStream).writeUTF(senderCallbacks.getFilesUris().size.toString())
+                        (dataOutputStream as DataOutputStream).writeUTF(starterOfNetworkCallbacks.getFilesUris().size.toString())
                         (dataOutputStream as DataOutputStream).flush()
 
                         // send total file size
-                        for (uri in senderCallbacks.getFilesUris()) {
+                        for (uri in starterOfNetworkCallbacks.getFilesUris()) {
                             AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
                                 override fun onSuccess(fileDisplayName: String, fileSizeInBytes: Long, fileSizeInMB: Long) {
                                     totalFileSize += fileSizeInBytes
@@ -322,18 +306,18 @@ class AirShare private constructor(
 
         counter++
 
-        if (senderCallbacks == null) {
+        if (starterOfNetworkCallbacks == null) {
             terminateConnection()
             return
         }
-        if (counter == senderCallbacks.getFilesUris().size) {
-            commonCallbacks.onAllFilesSentAndReceivedSuccessfully()
+        if (counter == starterOfNetworkCallbacks.getFilesUris().size) {
+            starterOfNetworkCallbacks.onAllFilesSentAndReceivedSuccessfully()
             terminateConnection()
             return
         }
 
         // get next uri
-        val uri = senderCallbacks.getFilesUris().get(counter)
+        val uri = starterOfNetworkCallbacks.getFilesUris().get(counter)
 
         // send file
         AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
@@ -369,7 +353,7 @@ class AirShare private constructor(
                         progressFileSize += fileSizeInBytes
                         val progress = progressFileSize.toDouble() / totalFileSize.toDouble()
                         val progressPercentage = (progress * 100.toDouble()).toInt()
-                        commonCallbacks.onProgress(progressPercentage)
+                        starterOfNetworkCallbacks.onProgress(progressPercentage)
                         // send next
                         sendNextFile()
                     }
@@ -389,8 +373,13 @@ class AirShare private constructor(
 
         counter++
 
+        if (joinerOfNetworkCallbacks == null) {
+            terminateConnection()
+            return
+        }
+
         if (counter == totalNoOfFiles) {
-            commonCallbacks.onAllFilesSentAndReceivedSuccessfully()
+            joinerOfNetworkCallbacks.onAllFilesSentAndReceivedSuccessfully()
             terminateConnection()
             return
         }
@@ -429,7 +418,7 @@ class AirShare private constructor(
                 progressFileSize += fileSize.toLong()
                 val progress = progressFileSize.toDouble() / totalFileSize.toDouble()
                 val progressPercentage = (progress * 100.toDouble()).toInt()
-                commonCallbacks.onProgress(progressPercentage)
+                joinerOfNetworkCallbacks.onProgress(progressPercentage)
 
                 receiveNextFile()
             }

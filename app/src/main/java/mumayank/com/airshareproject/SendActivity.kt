@@ -93,11 +93,8 @@ class SendActivity : AppCompatActivity() {
                 "This app uses wifi to transfer files. You and your friend can get connected to a same wifi. Or you can start a wifi hotspot and the friend can connect to it, Or vice-versa.",
                 isCancelable = false,
                 airButton1 = AirDialog.Button("WE ARE CONNECTED VIA WIFI") {
-                    airShare = AirShare(this, object: AirShare.CommonCallbacks {
-                        override fun onProgress(progressPercentage: Int) {
-                            progressBar?.progress = progressPercentage
-                        }
 
+                    airShare = AirShare(this, object: AirShare.StarterOfNetworkCallbacks {
                         override fun onWriteExternalStoragePermissionDenied() {
                             Toast.makeText(this@SendActivity, "Cannot continue without file writing permission access", Toast.LENGTH_SHORT).show()
                         }
@@ -120,8 +117,11 @@ class SendActivity : AppCompatActivity() {
                             progressDialog.show()
 
                             val window = progressDialog.getWindow()
-                            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                            window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                        }
 
+                        override fun onProgress(progressPercentage: Int) {
+                            progressBar?.progress = progressPercentage
                         }
 
                         override fun onAllFilesSentAndReceivedSuccessfully() {
@@ -129,7 +129,6 @@ class SendActivity : AppCompatActivity() {
                             finish()
                         }
 
-                    }, object: AirShare.NetworkStarterCallbacks {
                         override fun onServerStarted(codeForClient: String) {
                             airDialog = AirDialog(
                                 this@SendActivity,
@@ -142,7 +141,6 @@ class SendActivity : AppCompatActivity() {
                             )
                         }
 
-                    }, object: AirShare.SenderCallbacks {
                         override fun getFilesUris(): ArrayList<Uri> {
                             return uris
                         }
