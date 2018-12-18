@@ -91,30 +91,6 @@ class ReceiveActivity : AppCompatActivity() {
     private var airShare: AirShare? = null
     
     ...
-    
-    airShare = AirShare(this, object: AirShare.CommonCallbacks {
-                    override fun onProgress(progressPercentage: Int) {
-                        // INFORM USER ABOUT THIS PROGRESS UPDATE, LIKE UPDATE THE PROGRESS BAR
-                    }
-
-                    override fun onWriteExternalStoragePermissionDenied() {
-                        // INFORM USER THIS PERMISSION IS NECESSARY, AND TRY AGAIN
-                    }
-
-                    override fun onConnected() {
-                        // INFORM USER THAT FILE TRANSFER IS STARTING NOW
-                    }
-
-                    override fun onAllFilesSentAndReceivedSuccessfully() {
-                        // INFORM USER THAT ALL FILES ARE TRANSFERRED/ RECEIVED
-                    }
-
-                }, object: AirShare.NetworkJoinerCallbacks {
-                    override fun getCodeForClient(): String {
-                        // RETURN THE OTP RECEIVED BY THE SENDER IN THEIR APP TO ESTABLISH CONNECTION
-                    }
-
-                })
                 
     airShare = AirShare(this, object: AirShare.JoinerOfNetworkCallbacks {
     
@@ -203,7 +179,7 @@ AirShareFileProperties.extractFileProperties(this, uri, object: AirShareFileProp
                     })
 
 ```
-# Java
+# Full Java Support
 
 Java usage remains exactly the same as stated above. This section is a guidance for Java-devs:
 ```java
