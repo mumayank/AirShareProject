@@ -32,10 +32,12 @@ An Android library to make it super easy to include '**share files without inter
 
 # Usage
 
-Wherever you want to send files:
+Wherever you want to send or receive files:
 1. Declare `airShare` object variable inside the `activity`
-2. Init the variable whenever user wants to send the files
+2. Init the variable whenever user wants to send or receive the files
 3. Clean up on `onDestroy`
+
+## Send Files code example
 
 ```kotlin
 class SendActivity : AppCompatActivity() {
@@ -88,10 +90,7 @@ class SendActivity : AppCompatActivity() {
 }
 ```
 
-Wherever you want to receive files:
-1. Declare `airShare` object variable inside the `activity`
-2. Init the variable whenever user wants to send the files
-3. Clean up on `onDestroy`
+## Receive files code example
 
 ```kotlin
 class ReceiveActivity : AppCompatActivity() {
@@ -137,7 +136,9 @@ The library also provides helper methods. Such as:
 + File chooser ([using storage access network](https://developer.android.com/guide/topics/providers/document-provider))
 + File properties extractor
 
-Whenever you want to user file chooser:
+## File chooser code example
+
+Whenever you want to show file chooser:
 1. Declare `airShareAddFile` object variable inside the `activity`
 2. Init the variable whenever user wants to choose more file
 3. Override `onActivityResult` to call `airShareAddFile`'s method by the same name
@@ -149,7 +150,7 @@ class SendActivity : AppCompatActivity() {
     
     ...
     
-    // WHEN USER WANTS TO ADD MORE FILE:
+    // WHEN YOU WANT TO SHOW FILE CHOOSER:
     airShareAddFile = AirShareAddFile(this, object: AirShareAddFile.Callbacks {
                 override fun onSuccess(uri: Uri) {
                     // DO SOMETHING WITH THIS URI
@@ -170,8 +171,7 @@ class SendActivity : AppCompatActivity() {
     
 }
 ```
-
-To extract properties from a file's uri:
+## Extract file properties from Uri code example
 
 ```kotlin
 
