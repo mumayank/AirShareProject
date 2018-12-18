@@ -269,12 +269,12 @@ class AirShare private constructor(
                         terminateConnection()
                         return@uiThread
                     }
-
                     doAsync {
                         (dataOutputStream as DataOutputStream).writeUTF(senderCallbacks.getFilesUris().size.toString())
                         (dataOutputStream as DataOutputStream).flush()
 
-                        // send total size
+
+/*
                         var totalSize = 0L
                         for (uri in senderCallbacks.getFilesUris()) {
                             AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
@@ -289,9 +289,8 @@ class AirShare private constructor(
                         }
                         (dataOutputStream as DataOutputStream).writeUTF(totalSize.toString())
                         (dataOutputStream as DataOutputStream).flush()
+*/
 
-                        (dataInputStream as DataInputStream).close()
-                        (dataOutputStream as DataOutputStream).close()
 
                         uiThread {
                             // send file one by one, also send its size (we are assuming buffer size will be available)
@@ -300,19 +299,13 @@ class AirShare private constructor(
                     }
 
                 } else {
-
                     // receive total no. of files
                     if (dataInputStream == null) {
                         terminateConnection()
                         return@uiThread
                     }
-
                     doAsync {
                         clientTotalNumber = (dataInputStream as DataInputStream).readUTF().toInt()
-                        clientTotalSize = (dataInputStream as DataInputStream).readUTF().toInt()
-
-                        (dataInputStream as DataInputStream).close()
-                        (dataOutputStream as DataOutputStream).close()
 
                         uiThread {
                             receiveNextFile()
@@ -328,137 +321,149 @@ class AirShare private constructor(
 
     private fun sendNextFile() {
 
-        doAsync {
+        counter++
 
-            dataInputStream = DataInputStream(clientSocket?.getInputStream())
-            dataOutputStream = DataOutputStream(clientSocket?.getOutputStream())
-
-            uiThread {
-
-                counter++
-
-                if (senderCallbacks == null) {
-                    terminateConnection()
-                    return@uiThread
-                }
-                if (counter == senderCallbacks.getFilesUris().size) {
-                    commonCallbacks.onAllFilesSentAndReceivedSuccessfully()
-                    terminateConnection()
-                    return@uiThread
-                }
-
-                // get uri
-                val uri = senderCallbacks.getFilesUris().get(counter)
-
-                // send file
-                AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
-                    override fun onSuccess(fileDisplayName: String, fileSizeInMB: Long) {
-
-                        // send file name
-                        if (dataOutputStream == null) {
-                            terminateConnection()
-                            return
-                        }
-
-                        doAsync {
-                            (dataOutputStream as DataOutputStream).writeUTF(fileDisplayName)
-                            (dataOutputStream as DataOutputStream).flush()
-                            //(dataOutputStream as DataOutputStream).writeUTF(fileSizeInMB.toString())
-
-                            // create input stream
-                            val inputStream = activity.contentResolver.openInputStream(uri)
-                            if (inputStream == null) {
-                                terminateConnection()
-                                return@doAsync
-                            }
-
-                            // send file
-                            val byteArray = ByteArray(BUFFER)
-                            var count = inputStream.read(byteArray) ?: 0
-                            while (count > 0) {
-                                (dataOutputStream as DataOutputStream).write(byteArray, 0, count)
-                                count = inputStream.read(byteArray) ?: 0
-                            }
-
-                            (dataOutputStream as DataOutputStream).flush()
-                            inputStream.close()
-
-                            (dataInputStream as DataInputStream).close()
-                            (dataOutputStream as DataOutputStream).close()
-
-                            uiThread {
-                                // send next
-                                sendNextFile()
-                            }
-
-                        }
-
-                    }
-
-                    override fun onOperationFailed() {
-                        terminateConnection()
-                    }
-                })
-            }
+        if (senderCallbacks == null) {
+            terminateConnection()
+            return
         }
+        if (counter == senderCallbacks.getFilesUris().size) {
+            commonCallbacks.onAllFilesSentAndReceivedSuccessfully()
+            terminateConnection()
+            return
+        }
+
+        // get next uri
+        val uri = senderCallbacks.getFilesUris().get(counter)
+
+        // send file
+        AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
+            override fun onSuccess(fileDisplayName: String, fileSizeInBytes: Long, fileSizeInMB: Long) {
+
+                // send file name and size
+                if (dataOutputStream == null) {
+                    terminateConnection()
+                    return
+                }
+
+                doAsync {
+                    (dataOutputStream as DataOutputStream).writeUTF(fileDisplayName)
+                    (dataOutputStream as DataOutputStream).flush()
+                    (dataOutputStream as DataOutputStream).writeUTF(fileSizeInBytes.toString())
+                    (dataOutputStream as DataOutputStream).flush()
+
+                    // create input stream
+                    val inputStream = activity.contentResolver.openInputStream(uri)
+                    if (inputStream == null) {
+                        terminateConnection()
+                        return@doAsync
+                    }
+
+                    // send file
+                    val byteArray = ByteArray(fileSizeInBytes.toInt())
+                    var count = inputStream.read(byteArray) ?: 0
+                    while (count > 0) {
+                        (dataOutputStream as DataOutputStream).write(byteArray, 0, count)
+                        count = inputStream.read(byteArray) ?: 0
+                    }
+
+                    (dataOutputStream as DataOutputStream).flush()
+                    inputStream.close()
+
+                    if (dataInputStream == null) {
+                        terminateConnection()
+                        return@doAsync
+                    }
+                    (dataInputStream as DataInputStream).readUTF()
+
+                    uiThread {
+                        // send next
+                        sendNextFile()
+                    }
+
+                }
+
+            }
+
+            override fun onOperationFailed() {
+                terminateConnection()
+            }
+        })
 
     }
 
     private fun receiveNextFile() {
 
+
+
+        counter++
+
+        if (counter == clientTotalNumber) {
+            commonCallbacks.onAllFilesSentAndReceivedSuccessfully()
+            terminateConnection()
+            return
+        }
+
+        // read file name
+        if (dataInputStream == null) {
+            terminateConnection()
+            return
+        }
+
         doAsync {
 
-            dataInputStream = DataInputStream(clientSocket?.getInputStream())
-            dataOutputStream = DataOutputStream(clientSocket?.getOutputStream())
+            val fileName = (dataInputStream as DataInputStream).readUTF()
+            var fileSize = (dataInputStream as DataInputStream).readUTF().toInt()
+
+            // create output stream
+            val path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS + APP_FOLDER)
+            path.mkdirs()
+            val file = File(path, fileName)
+            val fileOutputStream = FileOutputStream(file)
+
+            // receive file
+            if (dataInputStream == null) {
+                terminateConnection()
+                return@doAsync
+            }
+
+            val buffer = ByteArray(fileSize)
+            (dataInputStream as DataInputStream).readFully(buffer)
+            fileOutputStream.write(buffer, 0, fileSize)
+
+
+            /*val byteArray = ByteArray(fileSize)
+            var count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
+            while (count > 0) {
+                fileOutputStream.write(byteArray, 0, count)
+                count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
+            }*/
+
+
+            /*val byteArray = ByteArray(fileSize)
+            var count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
+            while(fileSize > 0) {
+                fileOutputStream.write(byteArray, 0, count)
+                fileSize -= count
+                count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
+            }*/
+
+           /* while (count > 0) {
+                fileOutputStream.write(byteArray, 0, count)
+                count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
+            }*/
+
+            fileOutputStream.flush()
+            fileOutputStream.close()
+
+            if (dataOutputStream == null) {
+                terminateConnection()
+                return@doAsync
+            }
+            (dataOutputStream as DataOutputStream).writeUTF("OK")
 
             uiThread {
-
-                counter++
-
-                if (counter == clientTotalNumber) {
-                    commonCallbacks.onAllFilesSentAndReceivedSuccessfully()
-                    terminateConnection()
-                    return@uiThread
-                }
-
-                // read file name
-                if (dataInputStream == null) {
-                    terminateConnection()
-                    return@uiThread
-                }
-
-                doAsync {
-
-                    val fileName = (dataInputStream as DataInputStream).readUTF()
-
-                    // create output stream
-                    val path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS + APP_FOLDER)
-                    path.mkdirs()
-                    val file = File(path, fileName)
-                    val fileOutputStream = FileOutputStream(file)
-
-                    // receive file
-                    if (dataInputStream == null) {
-                        terminateConnection()
-                        return@doAsync
-                    }
-                    val byteArray = ByteArray(BUFFER)
-                    var count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
-                    while (count > 0) {
-                        fileOutputStream.write(byteArray, 0, count)
-                        count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
-                    }
-
-                    fileOutputStream.flush()
-                    fileOutputStream.close()
-
-                    (dataInputStream as DataInputStream).close()
-                    (dataOutputStream as DataOutputStream).close()
-
-                    uiThread {
-                        receiveNextFile()
-                    }
-                }
+                receiveNextFile()
             }
         }
 

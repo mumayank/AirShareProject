@@ -61,7 +61,7 @@ class SendActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            AirDialog.show(
+            AirDialog(
                 this,
                 "Sure to remove all files from this list?",
                 airButton1 = AirDialog.Button("REMOVE ALL") {
@@ -76,7 +76,10 @@ class SendActivity : AppCompatActivity() {
         }
 
         send.setOnClickListener {
-            AirDialog.show(
+
+            var airDialog: AirDialog? = null
+
+            AirDialog(
                 this,
                 "Are you both connected to a same wifi/ hotspot?",
                 "This app uses wifi to transfer files. You and your friend can get connected to a same wifi. Or you can start a wifi hotspot and the friend can connect to it, Or vice-versa.",
@@ -88,7 +91,15 @@ class SendActivity : AppCompatActivity() {
                         }
 
                         override fun onConnected() {
-                            Toast.makeText(this@SendActivity, "Friend has joined this connection", Toast.LENGTH_SHORT).show()
+                            airDialog?.dismiss()
+                            AirDialog(
+                                this@SendActivity,
+                                "Sending files...",
+                                isCancelable = false,
+                                airButton3 = AirDialog.Button("CANCEL") {
+                                    finish()
+                                }
+                            )
                         }
 
                         override fun onAllFilesSentAndReceivedSuccessfully() {
@@ -98,19 +109,15 @@ class SendActivity : AppCompatActivity() {
 
                     }, object: AirShare.NetworkStarterCallbacks {
                         override fun onServerStarted(codeForClient: String) {
-                            AirDialog.show(
+                            airDialog = AirDialog(
                                 this@SendActivity,
-                                "$codeForClient is the OTP for joining this connection",
+                                "OTP: $codeForClient",
                                 "Your friend will need this to join your connection",
                                 isCancelable = false,
-                                airButton1 = AirDialog.Button("NOTED, PROCEED") {
-
-                                },
                                 airButton3 = AirDialog.Button("CANCEL") {
                                     finish()
                                 }
                             )
-                            Toast.makeText(this@SendActivity, "Connection started", Toast.LENGTH_SHORT).show()
                         }
 
                     }, object: AirShare.SenderCallbacks {
@@ -155,7 +162,7 @@ class SendActivity : AppCompatActivity() {
                 val uri = uris[position]
 
                 AirShareFileProperties.extractFileProperties(this@SendActivity, uri, object: AirShareFileProperties.Callbacks {
-                    override fun onSuccess(fileDisplayName: String, fileSizeInMB: Long) {
+                    override fun onSuccess(fileDisplayName: String, fileSizeInBytes: Long, fileSizeInMB: Long) {
                         customViewHolder.fileNameTextView.text = fileDisplayName
                         customViewHolder.fileSizeTextView.text = "$fileSizeInMB MB"
                         total += fileSizeInMB
@@ -172,7 +179,7 @@ class SendActivity : AppCompatActivity() {
                     val index = uris.indexOf(uri)
 
                     AirShareFileProperties.extractFileProperties(this@SendActivity, uri, object: AirShareFileProperties.Callbacks {
-                        override fun onSuccess(fileDisplayName: String, fileSizeInMB: Long) {
+                        override fun onSuccess(fileDisplayName: String, fileSizeInBytes: Long, fileSizeInMB: Long) {
                             total -= fileSizeInMB
                             updateTotal()
                             uris.removeAt(index)

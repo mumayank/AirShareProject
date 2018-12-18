@@ -21,7 +21,7 @@ class ReceiveActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_client)
 
-        AirDialog.show(
+        AirDialog(
             this,
             "Are you both connected to a same wifi/ hotspot?",
             "This app uses wifi to transfer files. You and your friend can get connected to a same wifi. Or you can start a wifi hotspot and the friend can connect to it, Or vice-versa.",
@@ -44,11 +44,18 @@ class ReceiveActivity : AppCompatActivity() {
                         }
 
                         override fun onConnected() {
-                            Toast.makeText(this@ReceiveActivity, "Friend has joined this connection", Toast.LENGTH_SHORT).show()
+                            AirDialog(
+                                this@ReceiveActivity,
+                                "Receiving files...",
+                                isCancelable = false,
+                                airButton3 = AirDialog.Button("CANCEL") {
+                                    finish()
+                                }
+                            )
                         }
 
                         override fun onAllFilesSentAndReceivedSuccessfully() {
-                            Toast.makeText(this@ReceiveActivity, "All files received successfully!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@ReceiveActivity, "All files received successfully in 'Download' folder!", Toast.LENGTH_SHORT).show()
                             finish()
                         }
 
