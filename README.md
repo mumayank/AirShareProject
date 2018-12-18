@@ -37,7 +37,7 @@ Wherever you want to send or receive files:
 2. Init the variable whenever user wants to send or receive the files
 3. Clean up on `onDestroy`
 
-## Send Files code example
+#### Send Files code example
 
 ```kotlin
 class SendActivity : AppCompatActivity() {
@@ -90,7 +90,7 @@ class SendActivity : AppCompatActivity() {
 }
 ```
 
-## Receive files code example
+#### Receive files code example
 
 ```kotlin
 class ReceiveActivity : AppCompatActivity() {
@@ -136,7 +136,7 @@ The library also provides helper methods. Such as:
 + File chooser ([using storage access network](https://developer.android.com/guide/topics/providers/document-provider))
 + File properties extractor
 
-## File chooser code example
+#### File chooser code example
 
 Whenever you want to show file chooser:
 1. Declare `airShareAddFile` object variable inside the `activity`
@@ -171,7 +171,7 @@ class SendActivity : AppCompatActivity() {
     
 }
 ```
-## Extract file properties from Uri code example
+#### Extract file properties from Uri code example
 
 ```kotlin
 
