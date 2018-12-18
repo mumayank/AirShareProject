@@ -3,6 +3,14 @@
 
 An Android library to make it super easy to include '**share files without internet**' feature inside your app
 
+| Index  |
+| ------------- |
+| [Screenshots](https://github.com/mumayank/AirShareProject/blob/master/README.md#screenshots) |
+| [Usage in Kotlin](https://github.com/mumayank/AirShareProject/blob/master/README.md#usage)  |
+| [Helper methods](https://github.com/mumayank/AirShareProject/blob/master/README.md#helpers) |
+| [Uage in Java](https://github.com/mumayank/AirShareProject/blob/master/README.md#full-java-support) |
+| [Setup](https://github.com/mumayank/AirShareProject/blob/master/README.md#setup) |
+
 ![](https://images.unsplash.com/photo-1521575107034-e0fa0b594529)
 
 + Uses tcp socket over wifi internally
