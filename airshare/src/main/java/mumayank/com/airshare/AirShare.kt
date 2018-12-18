@@ -64,8 +64,9 @@ class AirShare private constructor(
     private var dataInputStream: DataInputStream? = null
     private var dataOutputStream: DataOutputStream? = null
     private var counter = -1
-    private var clientTotalNumber = 0
-    private var clientTotalSize = 0
+    private var totalNoOfFiles = 0
+    private var totalFileSize = 0L
+    private var progressFileSize = 0L
 
     init {
         if ( (clientSocket != null) || (serverSocket != null) ) {
@@ -86,6 +87,7 @@ class AirShare private constructor(
     interface CommonCallbacks {
         fun onWriteExternalStoragePermissionDenied()
         fun onConnected()
+        fun onProgress(progressPercentage: Int)
         fun onAllFilesSentAndReceivedSuccessfully()
     }
 
@@ -273,13 +275,11 @@ class AirShare private constructor(
                         (dataOutputStream as DataOutputStream).writeUTF(senderCallbacks.getFilesUris().size.toString())
                         (dataOutputStream as DataOutputStream).flush()
 
-
-/*
-                        var totalSize = 0L
+                        // send total file size
                         for (uri in senderCallbacks.getFilesUris()) {
                             AirShareFileProperties.extractFileProperties(activity, uri, object: AirShareFileProperties.Callbacks {
-                                override fun onSuccess(fileDisplayName: String, fileSizeInMB: Long) {
-                                    totalSize += fileSizeInMB
+                                override fun onSuccess(fileDisplayName: String, fileSizeInBytes: Long, fileSizeInMB: Long) {
+                                    totalFileSize += fileSizeInBytes
                                 }
 
                                 override fun onOperationFailed() {
@@ -287,10 +287,8 @@ class AirShare private constructor(
                                 }
                             })
                         }
-                        (dataOutputStream as DataOutputStream).writeUTF(totalSize.toString())
+                        (dataOutputStream as DataOutputStream).writeUTF(totalFileSize.toString())
                         (dataOutputStream as DataOutputStream).flush()
-*/
-
 
                         uiThread {
                             // send file one by one, also send its size (we are assuming buffer size will be available)
@@ -305,7 +303,8 @@ class AirShare private constructor(
                         return@uiThread
                     }
                     doAsync {
-                        clientTotalNumber = (dataInputStream as DataInputStream).readUTF().toInt()
+                        totalNoOfFiles = (dataInputStream as DataInputStream).readUTF().toInt()
+                        totalFileSize = (dataInputStream as DataInputStream).readUTF().toLong()
 
                         uiThread {
                             receiveNextFile()
@@ -360,23 +359,17 @@ class AirShare private constructor(
                     }
 
                     // send file
-                    val byteArray = ByteArray(fileSizeInBytes.toInt())
-                    var count = inputStream.read(byteArray) ?: 0
-                    while (count > 0) {
-                        (dataOutputStream as DataOutputStream).write(byteArray, 0, count)
-                        count = inputStream.read(byteArray) ?: 0
-                    }
-
+                    val buffer = ByteArray(fileSizeInBytes.toInt())
+                    inputStream.read(buffer)
+                    (dataOutputStream as DataOutputStream).write(buffer, 0, fileSizeInBytes.toInt())
                     (dataOutputStream as DataOutputStream).flush()
                     inputStream.close()
 
-                    if (dataInputStream == null) {
-                        terminateConnection()
-                        return@doAsync
-                    }
-                    (dataInputStream as DataInputStream).readUTF()
-
                     uiThread {
+                        progressFileSize += fileSizeInBytes
+                        val progress = progressFileSize.toDouble() / totalFileSize.toDouble()
+                        val progressPercentage = (progress * 100.toDouble()).toInt()
+                        commonCallbacks.onProgress(progressPercentage)
                         // send next
                         sendNextFile()
                     }
@@ -394,11 +387,9 @@ class AirShare private constructor(
 
     private fun receiveNextFile() {
 
-
-
         counter++
 
-        if (counter == clientTotalNumber) {
+        if (counter == totalNoOfFiles) {
             commonCallbacks.onAllFilesSentAndReceivedSuccessfully()
             terminateConnection()
             return
@@ -413,7 +404,7 @@ class AirShare private constructor(
         doAsync {
 
             val fileName = (dataInputStream as DataInputStream).readUTF()
-            var fileSize = (dataInputStream as DataInputStream).readUTF().toInt()
+            val fileSize = (dataInputStream as DataInputStream).readUTF().toInt()
 
             // create output stream
             val path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS + APP_FOLDER)
@@ -431,38 +422,15 @@ class AirShare private constructor(
             (dataInputStream as DataInputStream).readFully(buffer)
             fileOutputStream.write(buffer, 0, fileSize)
 
-
-            /*val byteArray = ByteArray(fileSize)
-            var count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
-            while (count > 0) {
-                fileOutputStream.write(byteArray, 0, count)
-                count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
-            }*/
-
-
-            /*val byteArray = ByteArray(fileSize)
-            var count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
-            while(fileSize > 0) {
-                fileOutputStream.write(byteArray, 0, count)
-                fileSize -= count
-                count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
-            }*/
-
-           /* while (count > 0) {
-                fileOutputStream.write(byteArray, 0, count)
-                count = (dataInputStream as DataInputStream).read(byteArray) ?: 0
-            }*/
-
             fileOutputStream.flush()
             fileOutputStream.close()
 
-            if (dataOutputStream == null) {
-                terminateConnection()
-                return@doAsync
-            }
-            (dataOutputStream as DataOutputStream).writeUTF("OK")
-
             uiThread {
+                progressFileSize += fileSize.toLong()
+                val progress = progressFileSize.toDouble() / totalFileSize.toDouble()
+                val progressPercentage = (progress * 100.toDouble()).toInt()
+                commonCallbacks.onProgress(progressPercentage)
+
                 receiveNextFile()
             }
         }

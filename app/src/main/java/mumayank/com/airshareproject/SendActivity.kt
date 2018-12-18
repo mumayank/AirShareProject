@@ -1,5 +1,6 @@
 package mumayank.com.airshareproject
 
+import android.app.Dialog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -10,6 +11,8 @@ import android.support.v7.widget.RecyclerView
 import android.text.InputType
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
+import android.view.Window
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageView
@@ -22,6 +25,10 @@ import mumayank.com.airrecyclerview.AirRecyclerView
 import mumayank.com.airshare.AirShare
 import mumayank.com.airshare.AirShareAddFile
 import mumayank.com.airshare.AirShareFileProperties
+import android.widget.ProgressBar
+import android.view.Window.FEATURE_NO_TITLE
+
+
 
 class SendActivity : AppCompatActivity() {
 
@@ -52,7 +59,7 @@ class SendActivity : AppCompatActivity() {
                     Toast.makeText(this@SendActivity, "File already added", Toast.LENGTH_SHORT).show()
                 }
 
-            })
+            }, uris)
         }
 
         clearAll.setOnClickListener {
@@ -78,6 +85,7 @@ class SendActivity : AppCompatActivity() {
         send.setOnClickListener {
 
             var airDialog: AirDialog? = null
+            var progressBar: ProgressBar?= null
 
             AirDialog(
                 this,
@@ -86,20 +94,34 @@ class SendActivity : AppCompatActivity() {
                 isCancelable = false,
                 airButton1 = AirDialog.Button("WE ARE CONNECTED VIA WIFI") {
                     airShare = AirShare(this, object: AirShare.CommonCallbacks {
+                        override fun onProgress(progressPercentage: Int) {
+                            progressBar?.progress = progressPercentage
+                        }
+
                         override fun onWriteExternalStoragePermissionDenied() {
                             Toast.makeText(this@SendActivity, "Cannot continue without file writing permission access", Toast.LENGTH_SHORT).show()
                         }
 
                         override fun onConnected() {
                             airDialog?.dismiss()
-                            AirDialog(
-                                this@SendActivity,
-                                "Sending files...",
-                                isCancelable = false,
-                                airButton3 = AirDialog.Button("CANCEL") {
-                                    finish()
-                                }
-                            )
+
+                            val progressDialog = Dialog(this@SendActivity)
+                            progressDialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+                            progressDialog.setContentView(R.layout.progress_dialog)
+                            progressBar = progressDialog.findViewById(R.id.progressBar) as ProgressBar
+                            val title = progressDialog.findViewById<TextView>(R.id.title)
+                            title.text = "Sending files..."
+                            val cancel = progressDialog.findViewById(R.id.cancel) as TextView
+                            cancel.setOnClickListener {
+                                finish()
+                            }
+                            progressDialog.setCancelable(false)
+                            progressDialog.setCanceledOnTouchOutside(false)
+                            progressDialog.show()
+
+                            val window = progressDialog.getWindow()
+                            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+
                         }
 
                         override fun onAllFilesSentAndReceivedSuccessfully() {

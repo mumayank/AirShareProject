@@ -1,13 +1,19 @@
 package mumayank.com.airshareproject
 
+import android.app.ActionBar
+import android.app.Dialog
 import android.content.Context
 import android.content.Intent
 import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
 import android.support.v7.app.AlertDialog
 import android.text.InputType
+import android.view.ViewGroup
+import android.view.Window
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import kotlinx.android.synthetic.main.activity_main.*
 import mumayank.com.airdialog.AirDialog
@@ -37,21 +43,34 @@ class ReceiveActivity : AppCompatActivity() {
                 builder.setView(editText)
                 builder.setPositiveButton("OK") { _, _ ->
                     string = editText.text.toString()
+                    var progressBar: ProgressBar?= null
 
                     airShare = AirShare(this, object: AirShare.CommonCallbacks {
+                        override fun onProgress(progressPercentage: Int) {
+                            progressBar?.progress = progressPercentage
+                        }
+
                         override fun onWriteExternalStoragePermissionDenied() {
                             Toast.makeText(this@ReceiveActivity, "Cannot continue without file writing permission access", Toast.LENGTH_SHORT).show()
                         }
 
                         override fun onConnected() {
-                            AirDialog(
-                                this@ReceiveActivity,
-                                "Receiving files...",
-                                isCancelable = false,
-                                airButton3 = AirDialog.Button("CANCEL") {
-                                    finish()
-                                }
-                            )
+                            val progressDialog = Dialog(this@ReceiveActivity)
+                            progressDialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+                            progressDialog.setContentView(R.layout.progress_dialog)
+                            progressBar = progressDialog.findViewById(R.id.progressBar) as ProgressBar
+                            val title = progressDialog.findViewById<TextView>(R.id.title)
+                            title.text = "Receiving files..."
+                            val cancel = progressDialog.findViewById(R.id.cancel) as TextView
+                            cancel.setOnClickListener {
+                                finish()
+                            }
+                            progressDialog.setCancelable(false)
+                            progressDialog.setCanceledOnTouchOutside(false)
+                            progressDialog.show()
+
+                            val window = progressDialog.getWindow()
+                            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                         }
 
                         override fun onAllFilesSentAndReceivedSuccessfully() {
